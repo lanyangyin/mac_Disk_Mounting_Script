@@ -49,23 +49,24 @@ for key value in "${(@kv)config}"; do
     sleep 2
 done
 
-echo "检查完毕，开始恢复"
+echo "检查完毕，开始转移"
 
 # 初始化变量用于跟踪需要复制的文件
 files_to_copy=()
 has_files_to_copy=false
 
-# 遍历配置，检查需要从磁盘卷恢复的文件
+# 遍历配置，检查需要复制的文件
 for key value in "${(@kv)config}"; do
-    source_dir="$value"
-    target_dir="/Volumes/$key"
+    source_dir="/Volumes/$key"
+    target_dir="$value"
 
     echo "===== 检查文件 ($key) ====="
 
     found_files=false
-    # 查找磁盘卷中的所有文件
+    # 使用find命令查找目标目录中的所有文件
     while IFS= read -r file; do
         if [[ -n "$file" ]]; then
+            # 获取文件相对于目标目录的路径
             rel_path="${file#$target_dir/}"
 
             # 检查源目录中是否不存在该文件
@@ -74,7 +75,7 @@ for key value in "${(@kv)config}"; do
                     echo "将要复制的文件:"
                     found_files=true
                     has_files_to_copy=true
-                    fi
+                fi
                 echo "  $rel_path"
                 files_to_copy+=("$file")
             fi
@@ -94,22 +95,25 @@ if [[ $has_files_to_copy == true ]]; then
     echo ""
 
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        # 复制文件从磁盘卷到原始位置
+        # 用户确认后，开始复制文件
         for key value in "${(@kv)config}"; do
-            source_dir="$value"
-            target_dir="/Volumes/$key"
+            source_dir="/Volumes/$key"
+            target_dir="$value"
 
+            # 检查目录是否存在
             if [[ ! -d "$source_dir" || ! -d "$target_dir" ]]; then
                 continue
             fi
 
             echo "正在复制文件: $key"
 
+            # 复制文件从目标目录到源目录
             while IFS= read -r file; do
                 if [[ -n "$file" ]]; then
                     rel_path="${file#$target_dir/}"
 
                     if [[ ! -e "$source_dir/$rel_path" ]]; then
+                        # 创建目标目录结构并复制文件
                         mkdir -p "$(dirname "$source_dir/$rel_path")"
                         cp -v "$file" "$source_dir/$rel_path"
                     fi
@@ -123,15 +127,13 @@ if [[ $has_files_to_copy == true ]]; then
     fi
 fi
 
-# 询问用户是否要清空磁盘卷
-echo ""
-read -q "REPLY2?是否要清空目标目录（只删除内部文件，保留目录本身）? (y/n) "
-echo ""
+# 询问用户是否要清空目标目录
+REPLY2=y
 
 if [[ $REPLY2 =~ ^[Yy]$ ]]; then
-    # 清空磁盘卷中的所有内容
+    # 清空目标目录中的所有内容
     for key value in "${(@kv)config}"; do
-        target_dir="/Volumes/$key"
+        target_dir="$value"
         
         if [[ -d "$target_dir" ]]; then
             echo "正在清空目录: $target_dir"

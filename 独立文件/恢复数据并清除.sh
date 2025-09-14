@@ -49,93 +49,87 @@ for key value in "${(@kv)config}"; do
     sleep 2
 done
 
-echo "检查完毕，开始转移"
+echo "检查完毕，开始恢复"
 
-# 初始化变量用于跟踪需要移动的文件
-files_to_move=()
-has_files_to_move=false
+# 初始化变量用于跟踪需要复制的文件
+files_to_copy=()
+has_files_to_copy=false
 
-# 遍历配置，检查需要移动的文件
+# 遍历配置，检查需要从磁盘卷恢复的文件
 for key value in "${(@kv)config}"; do
-    source_dir="/Volumes/$key"
-    target_dir="$value"
+    source_dir="$value"
+    target_dir="/Volumes/$key"
 
     echo "===== 检查文件 ($key) ====="
 
     found_files=false
-    # 使用find命令查找目标目录中的所有文件
+    # 查找磁盘卷中的所有文件
     while IFS= read -r file; do
         if [[ -n "$file" ]]; then
-            # 获取文件相对于目标目录的路径
             rel_path="${file#$target_dir/}"
 
             # 检查源目录中是否不存在该文件
             if [[ ! -e "$source_dir/$rel_path" ]]; then
                 if [[ $found_files == false ]]; then
-                    echo "将要移动的文件:"
+                    echo "将要复制的文件:"
                     found_files=true
-                    has_files_to_move=true
-                fi
+                    has_files_to_copy=true
+                    fi
                 echo "  $rel_path"
-                files_to_move+=("$file")
+                files_to_copy+=("$file")
             fi
         fi
     done < <(find "$target_dir" -type f -print 2>/dev/null)
 
     if [[ $found_files == false ]]; then
-        echo "没有需要移动的文件"
+        echo "没有需要复制的文件"
     fi
 
     echo ""
 done
 
-# 如果有文件需要移动，请求用户确认
-if [[ $has_files_to_move == true ]]; then
-    read -q "REPLY?确认要移动上述文件吗？(y/n) "
+# 如果有文件需要复制，请求用户确认
+if [[ $has_files_to_copy == true ]]; then
+    read -q "REPLY?确认要复制上述文件吗？(y/n) "
     echo ""
 
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        # 用户确认后，开始移动文件
+        # 复制文件从磁盘卷到原始位置
         for key value in "${(@kv)config}"; do
-            source_dir="/Volumes/$key"
-            target_dir="$value"
+            source_dir="$value"
+            target_dir="/Volumes/$key"
 
-            # 检查目录是否存在
             if [[ ! -d "$source_dir" || ! -d "$target_dir" ]]; then
                 continue
             fi
 
-            echo "正在移动文件: $key"
+            echo "正在复制文件: $key"
 
-            # 移动文件从目标目录到源目录
             while IFS= read -r file; do
                 if [[ -n "$file" ]]; then
                     rel_path="${file#$target_dir/}"
 
                     if [[ ! -e "$source_dir/$rel_path" ]]; then
-                        # 创建目标目录结构并移动文件
                         mkdir -p "$(dirname "$source_dir/$rel_path")"
-                        mv -v "$file" "$source_dir/$rel_path"
+                        cp -v "$file" "$source_dir/$rel_path"
                     fi
                 fi
             done < <(find "$target_dir" -type f -print 2>/dev/null)
         done
 
-        echo "文件移动完成"
+        echo "文件复制完成"
     else
-        echo "文件移动已取消"
+        echo "文件复制已取消"
     fi
 fi
 
-# 询问用户是否要清空目标目录
-echo ""
-read -q "REPLY2?是否要清空目标目录（只删除内部文件，保留目录本身）? (y/n) "
-echo ""
+# 询问用户是否要清空磁盘卷
+REPLY2=y
 
 if [[ $REPLY2 =~ ^[Yy]$ ]]; then
-    # 清空目标目录中的所有内容
+    # 清空磁盘卷中的所有内容
     for key value in "${(@kv)config}"; do
-        target_dir="$value"
+        target_dir="/Volumes/$key"
         
         if [[ -d "$target_dir" ]]; then
             echo "正在清空目录: $target_dir"
