@@ -1,3 +1,5 @@
+#!/bin/zsh
+
 typeset -A config
 config=(
     obs-studio   /Users/lanan/Library/Application\ Support/obs-studio 
