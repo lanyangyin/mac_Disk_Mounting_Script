@@ -1,11 +1,39 @@
 #!/bin/zsh
 
-# 配置信息 - 定义关联数组存储应用名称和对应目录路径
+# 初始化空关联数组
 typeset -A config
-config=(
-    obs-studio   /Users/lanan/Library/Application\ Support/obs-studio
-    微信         /Users/lanan/Library/Containers/com.tencent.xinWeChat
-)
+
+# 解析命令行参数
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -n|--name)
+            app_name="$2"
+            shift 2
+            ;;
+        -p|--path)
+            mount_path="$2"
+            shift 2
+            ;;
+        *)
+            echo "未知参数: $1"
+            exit 1
+            ;;
+    esac
+
+    # 当收集到一对完整的名称和路径时，添加到配置
+    if [[ -n "$app_name" && -n "$mount_path" ]]; then
+        config[$app_name]="$mount_path"
+        app_name=""
+        mount_path=""
+    fi
+done
+
+# 检查是否提供了任何配置
+if [ ${#config[@]} -eq 0 ]; then
+    echo "错误: 未提供任何配置参数"
+    echo "用法: $0 -n 应用名称 -p 挂载路径 [-n 应用名称2 -p 挂载路径2 ...]"
+    exit 1
+fi
 
 # 检查磁盘状态
 for key value in "${(@kv)config}"; do
@@ -49,14 +77,12 @@ for key value in "${(@kv)config}"; do
     sleep 2
 done
 
-echo "检查完毕，开始打开"
+echo "检查完毕"
 
-# 使用Finder打开每个磁盘卷和对应的目标目录
-for key value in "${(@kv)config}"; do    
-    source_dir="/Volumes/$key"
-    target_dir="$value"
-    
-    echo "打开Finder窗口: $source_dir 和 $target_dir"
-    open -a Finder "$source_dir"
-    open -a Finder "$target_dir"
+# 卸载磁盘并使用mount_apfs重新挂载到指定目录
+for key value in "${(@kv)config}"; do
+    temp_var=$(diskutil list | awk -v key=" $key " '/APFS Volume/ && $0 ~ key {print $NF}')
+    diskutil unmount /dev/$temp_var || echo "$key 的磁盘 $temp_var 卸载失败"
+    sudo /sbin/mount_apfs /dev/$temp_var "$value"
+    sudo chmod 777 "$value"  # 设置目录权限为可读写
 done
